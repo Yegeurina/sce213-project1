@@ -57,28 +57,36 @@ struct entry{
  *   Return <0 on error
  */
  
-void run_pipe(char * command);
+//void run_pipe(int nr_tokens, char *tokens[],int nr_pipe,int pipe_idx[]);
+void run_pipe(int nr_tokens, char *tokens[],int pt);
 static int __process_cmd(char * command);
 
 static int run_command(int nr_tokens, char *tokens[])
 {
 	struct entry *temp;
-	int i=0,num;
+	int i=0,num,is_pipe=0;
 	char *cmd, *pre_cmd;
 	char *path;
-	//pid_t pid;
-	printf("%d\n",nr_tokens);
-	for(i=0;i<nr_tokens;i++) printf("%s\n",tokens[i]);
-	if (strcmp(tokens[0], "exit") == 0) 	return 0;
+	//int  pipe_cnt=0,pipe_idx[10]; 
+	pid_t pid;
 	
-	/*else if(nr_tokens>1 && strchr(tokens[1],'|')!=NULL)
+	/*fprintf(stderr,"%d\n",nr_tokens);
+	for(i=0;i<nr_tokens;i++) fprintf(stderr,"%s\n",tokens[i]);
+	fprintf(stderr,"====================\n");*/
+	
+	if(nr_tokens>1)	// pipe
 	{ 
-		cmd = (char *)malloc(sizeof((strlen(tokens[0])+1)+(strlen(tokens[1])+1)));
-		strcpy(cmd,tokens[0]);
-		strcat(cmd,tokens[1]);
-		printf("%s\n",cmd);
-		run_pipe(cmd);
-	} */
+		for(i=0;i<nr_tokens;i++)
+			if(strcmp(tokens[i],"|")==0)	{
+				run_pipe(nr_tokens,tokens,i);
+				is_pipe=1;
+			}
+			//pipe_idx[++pipe_cnt]=i;
+		
+		//if(pipe_cnt!=0)	run_pipe(nr_toke,ns,tokens,pipe_cnt,pipe_idx);
+	}
+	
+	if (strcmp(tokens[0], "exit") == 0) 	return 0;
 	else if(strcmp(tokens[0], "cd") == 0)
 	{
 		if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
@@ -130,10 +138,13 @@ static int run_command(int nr_tokens, char *tokens[])
 		}
 		free(cmd);
 	}
+	
+	
+	
 	// 포크하면 자식프로세스한테는 0이 떨어지고
 	// 부모프로세스한테는 자식프로세스의 PID가 떨어짐
 	
-	/*else if((pid=fork())==0)
+	else if((pid=fork())==0 && is_pipe==0)
 	{
 		if (execvp(tokens[0],tokens)==-1)
 		{
@@ -141,8 +152,9 @@ static int run_command(int nr_tokens, char *tokens[])
 		}
 		exit(0);
 		
-	}*/
+	}
 	while(wait(NULL)!=-1);
+	//wait(NULL);
 	//fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
 }
@@ -160,42 +172,118 @@ static int run_command(int nr_tokens, char *tokens[])
  
 
 
- void run_pipe(char* command)
- {
- 	int fd[2];	// handling pipe
+ void run_pipe(int nr_tokens, char *tokens[], int pt)
+ {	
+ 	int i,fd[2];
+ 	char **cmd1, **cmd2;
  	
- 	cmd1 = strtok(command,"|");
- 	cmd2 = strtok(NULL,"|");
- 	printf("%s\n%s",cmd1,cmd2);
+ 	cmd1 = (char **)malloc(sizeof(pt));
+ 	//fprintf(stderr,"pt is %d\n",pt); 
+ 	//fprintf(stderr,"this is run_pipe : cmd1\n"); 
+ 	for(i=0;i<pt;i++) 
+ 	{
+ 		cmd1[i]=tokens[i];
+ 		//fprintf(stderr,"%s\n",cmd1[i]); 
+ 	}
+ 	cmd2 = (char **)malloc(sizeof(nr_tokens-pt));
+ 	//fprintf(stderr,"this is run_pipe : cmd2\n");
+ 	for(i=pt+1;i<nr_tokens;i++) 
+ 	{
+ 		cmd2[i-(pt+1)]=tokens[i];
+ 		//fprintf(stderr,"%s\n",cmd2[i-(pt+1)]); 
+ 	}
+ 	
  	if(pipe(fd)<0)	exit(0);
  	
  	if(fork()==0)
  	{
- 		close(1);
+ 		close(STDOUT_FILENO);
  		dup2(fd[0],STDIN_FILENO);
  		close(fd[0]);
  		close(fd[1]);
- 		__process_cmd(cmd1);
+ 		run_command(pt,cmd1);
  		wait(NULL);
  		exit(0);
  	}
+ 	
+ 	
  	
  	if(fork()==0)
  	{
- 		close(0);	
+ 		close(STDIN_FILENO);
  		dup2(fd[0],STDIN_FILENO);
  		close(fd[0]);
  		close(fd[1]);
- 		__process_cmd(cmd2);
+ 		run_command(nr_tokens-pt-1,cmd2);
  		wait(NULL);
  		exit(0);
  	}
  	
- 	
- 	
+ 	close(fd[1]); 	close(fd[0]);
  	while(wait(NULL)!=-1);
- 	
+ 	return;
  }
+ 
+ /*void run_pipe(int nr_tokens, char *tokens[],int nr_pipe,int pipe_idx[])
+ {
+ 	int pipes[10][2]={0,};
+ 	pid_t pid;
+ 	int status;
+ 	char **cmd;
+ 	
+ 	pipe(pipes[0]);
+ 	if((pid=fork())<0)	exit(1);
+ 	else if(pid==0)
+ 	{
+ 		close(STDOUT_FILENO);
+ 		dup2(pipes[0][1],STDOUT_FILENO);
+ 		close(pipes[0][1]);
+ 		cmd = (char **)malloc(sizeof(pipe_idx[0]));
+ 		for(int i=0;i<pipe_idx[0];i++) cmd[i]=tokens[i];
+ 		run_command(pipe_idx[0],cmd);
+ 	}
+ 	close(pipes[0][1]);
+ 	wait(&status);
+ 	//if (WIFSIGNALED(status) || WIFSTOPPED(status)) exit(1);
+ 	
+ 	for (int i=1;i<=nr_pipe; i++)
+ 	{
+ 		pipe(pipes[i]);
+ 		if((pid=fork())<0) exit(1);
+ 		else if(pid==0)
+ 		{
+ 			close(STDIN_FILENO);
+ 			close(STDOUT_FILENO);
+ 			dup2(pipes[i-1][0],STDIN_FILENO);
+ 			dup2(pipes[i][1],STDOUT_FILENO);
+ 			close(pipes[i-1][0]);
+ 			close(pipes[i][1]);
+ 			cmd = (char **)malloc(sizeof(pipe_idx[0]));
+	 		for(int j=pipe_idx[i-1]+1;j<pipe_idx[i];j++) 
+	 			cmd[j-(pipe_idx[i-1]+1)]=tokens[j];
+	 		run_command(pipe_idx[i]-pipe_idx[i-1]-1,cmd);
+ 		}
+ 		close(pipes[i][1]);
+ 		wait(&status);
+ 		//if (WIFSIGNALED(status) || WIFSTOPPED(status)) exit(1);
+ 	}
+ 	
+ 	if((pid=fork())<0) exit(1);
+ 	else if(pid ==0)
+ 	{
+ 		close(STDIN_FILENO);
+ 		dup2(pipes[nr_pipe][0],STDIN_FILENO);
+ 		close(pipes[nr_pipe][0]);
+ 		close(pipes[nr_pipe][1]);
+ 		for(int i=pipe_idx[nr_pipe]+1; i<=nr_tokens;i++)
+ 			cmd[i-(pipe_idx[nr_pipe]+1)]=tokens[i];
+ 		run_command(nr_tokens-pipe_idx[nr_pipe]-1,cmd);
+ 	}
+ 	wait(&status);
+ 	//if (WIFSIGNALED(status) || WIFSTOPPED(status)) exit(1);
+ 	
+ 	return;
+ }*/
 
 
 
