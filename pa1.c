@@ -59,7 +59,7 @@ static int run_command(int nr_tokens, char *tokens[])
 {
 	struct entry *temp;
 	int i=0,num;
-	char* cmd;
+	char *cmd, *pre_cmd;
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 	else if (strcmp(tokens[0], "history") == 0)
 	{
@@ -75,16 +75,27 @@ static int run_command(int nr_tokens, char *tokens[])
 	{
 		if (tokens[0][1]=='!')	num = -1;
 		else num = atoi(tokens[0]+1);
-		
 		list_for_each_entry_reverse(temp,&history,list)
 		{
+			if(i>=2) free(pre_cmd);
+			if (i>=1)
+			{
+				pre_cmd = (char *) malloc(sizeof(strlen(cmd)+1));
+				strcpy(pre_cmd,cmd);
+			 	free(cmd);
+			}
 			cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
 			strcpy(cmd,temp->string);
 			if (i==num) 	break;
-			free(cmd);
 			i++;
 		}
-		
+		if (num==-1) 
+		{
+			free(cmd);
+			cmd = (char *) malloc(sizeof(strlen(pre_cmd)+1));
+			strcpy(cmd,pre_cmd);
+			free(pre_cmd);
+		}
 		if(num==-1 || i==num)
 		{
 			char *tokens[MAX_NR_TOKENS] = { NULL };
@@ -93,8 +104,11 @@ static int run_command(int nr_tokens, char *tokens[])
 			if (parse_command(cmd, &nr_tokens, tokens) != 0)
 				return run_command(nr_tokens, tokens);
 		}
+		free(cmd);
 	}
-	
+	else if(strcmp(tokens[0], "cd") == 0)
+	{
+	}	
 
 	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
