@@ -26,6 +26,22 @@
 #include "parser.h"
 
 
+
+/***********************************************************************
+ * struct list_head history
+ *
+ * DESCRIPTION
+ *   Use this list_head to store unlimited command history.
+ */
+LIST_HEAD(history);
+
+struct entry{
+	struct list_head list;
+	char *string;
+};
+
+
+
 /***********************************************************************
  * run_command()
  *
@@ -38,22 +54,53 @@
  *   Return 0 when user inputs "exit"
  *   Return <0 on error
  */
+
 static int run_command(int nr_tokens, char *tokens[])
 {
+	struct entry *temp;
+	int i=0,num;
+	char* cmd;
 	if (strcmp(tokens[0], "exit") == 0) return 0;
+	else if (strcmp(tokens[0], "history") == 0)
+	{
+		list_for_each_entry_reverse(temp,&history,list)
+		{
+			fprintf(stderr,"%2d: %s\n",i,temp->string);
+			i++;
+		}
+		
+		return 1;
+	}
+	else if(tokens[0][0]=='!')
+	{
+		if (tokens[0][1]=='!')	num = -1;
+		else num = atoi(tokens[0]+1);
+		
+		list_for_each_entry_reverse(temp,&history,list)
+		{
+			cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
+			strcpy(cmd,temp->string);
+			if (i==num) 	break;
+			free(cmd);
+			i++;
+		}
+		
+		if(num==-1 || i==num)
+		{
+			char *tokens[MAX_NR_TOKENS] = { NULL };
+			int nr_tokens = 0;
+
+			if (parse_command(cmd, &nr_tokens, tokens) != 0)
+				return run_command(nr_tokens, tokens);
+		}
+	}
+	
 
 	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
 }
 
 
-/***********************************************************************
- * struct list_head history
- *
- * DESCRIPTION
- *   Use this list_head to store unlimited command history.
- */
-LIST_HEAD(history);
 
 
 /***********************************************************************
@@ -65,6 +112,13 @@ LIST_HEAD(history);
  */
 static void append_history(char * const command)
 {
+	 struct entry *item = malloc(sizeof(struct entry));
+	 INIT_LIST_HEAD(&item->list);
+	 
+	 item->string = (char *)malloc(strlen(command)+1);
+	 strcpy(item->string,command);
+	 
+	 list_add(&item->list,&history);
 
 }
 
