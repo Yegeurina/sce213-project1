@@ -41,8 +41,7 @@ struct entry{
 	char *string;
 };
 
- char* cmd1;
- char* cmd2;
+
 
 /***********************************************************************
  * run_command()
@@ -56,37 +55,20 @@ struct entry{
  *   Return 0 when user inputs "exit"
  *   Return <0 on error
  */
- 
-void run_pipe(char * command);
-static int __process_cmd(char * command);
 
 static int run_command(int nr_tokens, char *tokens[])
 {
 	struct entry *temp;
 	int i=0,num;
 	char *cmd, *pre_cmd;
-	char *path;
-	//pid_t pid;
-	printf("%d\n",nr_tokens);
-	for(i=0;i<nr_tokens;i++) printf("%s\n",tokens[i]);
-	if (strcmp(tokens[0], "exit") == 0) 	return 0;
 	
-	/*else if(nr_tokens>1 && strchr(tokens[1],'|')!=NULL)
-	{ 
-		cmd = (char *)malloc(sizeof((strlen(tokens[0])+1)+(strlen(tokens[1])+1)));
-		strcpy(cmd,tokens[0]);
-		strcat(cmd,tokens[1]);
-		printf("%s\n",cmd);
-		run_pipe(cmd);
-	} */
+	if (strcmp(tokens[0], "exit") == 0) 	return 0;
 	else if(strcmp(tokens[0], "cd") == 0)
 	{
-		if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
+		/*if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
 		{
-			if((path= (char *)getenv("HOME"))==NULL) path=".";
-			
-			if(chdir(path)==0)	return 1;
-		}
+			continue;
+		}*/
 		if(chdir(tokens[1])==0)	return 1;
 	}
 	else if (strcmp(tokens[0], "history") == 0)
@@ -126,76 +108,32 @@ static int run_command(int nr_tokens, char *tokens[])
 		}
 		if(num==-1 || i==num)
 		{
-			__process_cmd(cmd);
+			char *tokens[MAX_NR_TOKENS] = { NULL };
+			int nr_tokens = 0;
+
+			if (parse_command(cmd, &nr_tokens, tokens) != 0)
+				return run_command(nr_tokens, tokens);
 		}
 		free(cmd);
 	}
-	// 포크하면 자식프로세스한테는 0이 떨어지고
-	// 부모프로세스한테는 자식프로세스의 PID가 떨어짐
-	
-	/*else if((pid=fork())==0)
+	else if(fork()==0)
 	{
 		if (execvp(tokens[0],tokens)==-1)
 		{
 			fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+			return -EINVAL;
 		}
-		exit(0);
 		
-	}*/
-	while(wait(NULL)!=-1);
+	}
+	else
+	{
+		wait(NULL);
+	}	
+	
 	//fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
 }
 
- static int __process_cmd(char * command)
- {
- 	char *tokens[MAX_NR_TOKENS] = { NULL };
-	int nr_tokens = 0;
-
-	if (parse_command(command, &nr_tokens, tokens) == 0)
-		return 1;
-
-	return run_command(nr_tokens, tokens);
- }
- 
-
-
- void run_pipe(char* command)
- {
- 	int fd[2];	// handling pipe
- 	
- 	cmd1 = strtok(command,"|");
- 	cmd2 = strtok(NULL,"|");
- 	printf("%s\n%s",cmd1,cmd2);
- 	if(pipe(fd)<0)	exit(0);
- 	
- 	if(fork()==0)
- 	{
- 		close(1);
- 		dup2(fd[0],STDIN_FILENO);
- 		close(fd[0]);
- 		close(fd[1]);
- 		__process_cmd(cmd1);
- 		wait(NULL);
- 		exit(0);
- 	}
- 	
- 	if(fork()==0)
- 	{
- 		close(0);	
- 		dup2(fd[0],STDIN_FILENO);
- 		close(fd[0]);
- 		close(fd[1]);
- 		__process_cmd(cmd2);
- 		wait(NULL);
- 		exit(0);
- 	}
- 	
- 	
- 	
- 	while(wait(NULL)!=-1);
- 	
- }
 
 
 
@@ -245,7 +183,7 @@ static int initialize(int argc, char * const argv[])
  */
 static void finalize(int argc, char * const argv[])
 {
-	
+
 }
 
 
