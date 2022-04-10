@@ -57,6 +57,7 @@ struct entry{
  *   Return <0 on error
  */
  
+//void run_pipe(int nr_tokens, char *tokens[],int nr_pipe,int pipe_idx[]);
 void run_pipe(int nr_tokens, char *tokens[],int pt);
 static int __process_cmd(char * command);
 
@@ -66,21 +67,23 @@ static int run_command(int nr_tokens, char *tokens[])
 	int i=0,num,is_pipe=0;
 	char *cmd, *pre_cmd;
 	char *path;
-	
+	//int  pipe_cnt=0,pipe_idx[10]; 
 	pid_t pid;
 	
-	fprintf(stderr,"%d\n",nr_tokens);
+	/*fprintf(stderr,"%d\n",nr_tokens);
 	for(i=0;i<nr_tokens;i++) fprintf(stderr,"%s\n",tokens[i]);
-	fprintf(stderr,"====================\n");
+	fprintf(stderr,"====================\n");*/
 	
 	if(nr_tokens>1)	// pipe
 	{ 
 		for(i=0;i<nr_tokens;i++)
-			if(strcmp(tokens[i],"|")==0)	
-			{
+			if(strcmp(tokens[i],"|")==0)	{
 				run_pipe(nr_tokens,tokens,i);
 				is_pipe=1;
 			}
+			//pipe_idx[++pipe_cnt]=i;
+		
+		//if(pipe_cnt!=0)	run_pipe(nr_toke,ns,tokens,pipe_cnt,pipe_idx);
 	}
 	
 	if (strcmp(tokens[0], "exit") == 0) 	return 0;
@@ -136,6 +139,8 @@ static int run_command(int nr_tokens, char *tokens[])
 		free(cmd);
 	}
 	
+	
+	
 	// 포크하면 자식프로세스한테는 0이 떨어지고
 	// 부모프로세스한테는 자식프로세스의 PID가 떨어짐
 	
@@ -148,9 +153,9 @@ static int run_command(int nr_tokens, char *tokens[])
 		exit(0);
 		
 	}
-	
 	while(wait(NULL)!=-1);
-	
+	//wait(NULL);
+	//fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
 }
 
@@ -172,23 +177,10 @@ static int run_command(int nr_tokens, char *tokens[])
  	int i,fd[2];
  	char **cmd1, **cmd2;
  	
- 	fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
- 	
  	cmd1 = (char **)malloc(sizeof(pt));
- 	fprintf(stderr,"pt is %d\n",pt); 
- 	fprintf(stderr,"this is run_pipe : cmd1\n"); 
- 	for(i=0;i<pt;i++) 
- 	{
- 		cmd1[i]=tokens[i];
- 		fprintf(stderr,"%s\n",cmd1[i]); 
- 	}
+ 	for(i=0;i<pt;i++) cmd1[i]=tokens[i];
  	cmd2 = (char **)malloc(sizeof(nr_tokens-pt));
- 	fprintf(stderr,"this is run_pipe : cmd2\n");
- 	for(i=pt+1;i<nr_tokens;i++) 
- 	{
- 		cmd2[i-(pt+1)]=tokens[i];
- 		fprintf(stderr,"%s\n",cmd2[i-(pt+1)]); 
- 	}
+ 	for(i=pt+1;i<nr_tokens;i++) cmd2[i-(pt+1)]=tokens[i];
  	
  	if(pipe(fd)<0)	exit(0);
  	
@@ -199,7 +191,6 @@ static int run_command(int nr_tokens, char *tokens[])
  		close(fd[0]);
  		close(fd[1]);
  		run_command(pt,cmd1);
- 		free(cmd1);
  		wait(NULL);
  		exit(0);
  	}
@@ -213,7 +204,6 @@ static int run_command(int nr_tokens, char *tokens[])
  		close(fd[0]);
  		close(fd[1]);
  		run_command(nr_tokens-pt-1,cmd2);
- 		free(cmd2);
  		wait(NULL);
  		exit(0);
  	}
