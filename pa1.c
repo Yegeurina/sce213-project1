@@ -70,7 +70,7 @@ static int run_command(int nr_tokens, char *tokens[])
 	pid_t pid;
 	
 	fprintf(stderr,"%d\n",nr_tokens);
-	for(i=0;i<nr_tokens;i++) fprintf(stderr,"%s\n",tokens[i]);
+	for(i=0;i<nr_tokens;i++) fprintf(stderr,"tokens[%d] : %s\n",i,tokens[i]);
 	fprintf(stderr,"====================\n");
 	
 	if(nr_tokens>1)	// pipe
@@ -191,6 +191,7 @@ static int run_command(int nr_tokens, char *tokens[])
  		cmd2[i-(pt+1)]=tokens[i];
  		//fprintf(stderr,"%s\n",cmd2[i-(pt+1)]); 
  	}
+ 	
  	if(pipe(fd)<0)	exit(0);
  	
  	if(fork()==0)
@@ -201,10 +202,10 @@ static int run_command(int nr_tokens, char *tokens[])
  		close(fd[1]);
  		run_command(pt,cmd1);
  		free(cmd1);
- 		while(wait(NULL)!=-1);
+ 		wait(NULL);
  		exit(0);
  	}
- 	
+ 	wait(NULL);
  	
  	
  	if(fork()==0)
@@ -215,13 +216,15 @@ static int run_command(int nr_tokens, char *tokens[])
  		close(fd[1]);
  		run_command(nr_tokens-pt-1,cmd2);
  		free(cmd2);
- 		while(wait(NULL)!=-1);
+ 		wait(NULL);
  		exit(0);
  	}
+ 	wait(NULL);
+ 	
  	
  	close(fd[1]); 	close(fd[0]);
  	
- 	while(wait(NULL)!=-1);
+ 	//while(wait(NULL)!=-1);
 
  }
  
