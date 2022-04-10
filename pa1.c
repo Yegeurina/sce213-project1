@@ -98,7 +98,7 @@ static int run_command(int nr_tokens, char *tokens[])
 	{
 		list_for_each_entry_reverse(temp,&history,list)
 		{
-			fprintf(stderr,"%2d: %s\n",i,temp->string);
+			fprintf(stderr,"%2d: %s",i,temp->string);
 			i++;
 		}
 		
@@ -172,24 +172,25 @@ static int run_command(int nr_tokens, char *tokens[])
  	int i,fd[2];
  	char **cmd1, **cmd2;
  	
- 	fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
+ 	//fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
  	
  	cmd1 = (char **)malloc(sizeof(pt));
- 	fprintf(stderr,"pt is %d\n",pt); 
- 	fprintf(stderr,"this is run_pipe : cmd1\n"); 
- 	for(i=0;i<pt;i++) 
+ 	//fprintf(stderr,"pt is %d\n",pt); 
+ 	//fprintf(stderr,"this is run_pipe : cmd1\n"); 
+ 	for(i=0;i<pt-1;i++) 
  	{
  		cmd1[i]=tokens[i];
- 		fprintf(stderr,"%s\n",cmd1[i]); 
+ 		//fprintf(stderr,"%s\n",cmd1[i]); 
  	}
- 	cmd2 = (char **)malloc(sizeof(nr_tokens-pt));
- 	fprintf(stderr,"this is run_pipe : cmd2\n");
+ 	cmd1[pt-1]=tokens[i]+'\0';
+ 	//fprintf(stderr,"cmd2 malloc test here\n cmd2 size is %d",nr_tokens-pt-1);
+ 	cmd2 = (char **)malloc(sizeof(nr_tokens-pt-1));
+ 	//fprintf(stderr,"this is run_pipe : cmd2\n");
  	for(i=pt+1;i<nr_tokens;i++) 
  	{
  		cmd2[i-(pt+1)]=tokens[i];
- 		fprintf(stderr,"%s\n",cmd2[i-(pt+1)]); 
+ 		//fprintf(stderr,"%s\n",cmd2[i-(pt+1)]); 
  	}
- 	
  	if(pipe(fd)<0)	exit(0);
  	
  	if(fork()==0)
@@ -200,7 +201,7 @@ static int run_command(int nr_tokens, char *tokens[])
  		close(fd[1]);
  		run_command(pt,cmd1);
  		free(cmd1);
- 		wait(NULL);
+ 		while(wait(NULL)!=-1);
  		exit(0);
  	}
  	
@@ -214,7 +215,7 @@ static int run_command(int nr_tokens, char *tokens[])
  		close(fd[1]);
  		run_command(nr_tokens-pt-1,cmd2);
  		free(cmd2);
- 		wait(NULL);
+ 		while(wait(NULL)!=-1);
  		exit(0);
  	}
  	
@@ -224,67 +225,6 @@ static int run_command(int nr_tokens, char *tokens[])
 
  }
  
- /*void run_pipe(int nr_tokens, char *tokens[],int nr_pipe,int pipe_idx[])
- {
- 	int pipes[10][2]={0,};
- 	pid_t pid;
- 	int status;
- 	char **cmd;
- 	
- 	pipe(pipes[0]);
- 	if((pid=fork())<0)	exit(1);
- 	else if(pid==0)
- 	{
- 		close(STDOUT_FILENO);
- 		dup2(pipes[0][1],STDOUT_FILENO);
- 		close(pipes[0][1]);
- 		cmd = (char **)malloc(sizeof(pipe_idx[0]));
- 		for(int i=0;i<pipe_idx[0];i++) cmd[i]=tokens[i];
- 		run_command(pipe_idx[0],cmd);
- 	}
- 	close(pipes[0][1]);
- 	wait(&status);
- 	//if (WIFSIGNALED(status) || WIFSTOPPED(status)) exit(1);
- 	
- 	for (int i=1;i<=nr_pipe; i++)
- 	{
- 		pipe(pipes[i]);
- 		if((pid=fork())<0) exit(1);
- 		else if(pid==0)
- 		{
- 			close(STDIN_FILENO);
- 			close(STDOUT_FILENO);
- 			dup2(pipes[i-1][0],STDIN_FILENO);
- 			dup2(pipes[i][1],STDOUT_FILENO);
- 			close(pipes[i-1][0]);
- 			close(pipes[i][1]);
- 			cmd = (char **)malloc(sizeof(pipe_idx[0]));
-	 		for(int j=pipe_idx[i-1]+1;j<pipe_idx[i];j++) 
-	 			cmd[j-(pipe_idx[i-1]+1)]=tokens[j];
-	 		run_command(pipe_idx[i]-pipe_idx[i-1]-1,cmd);
- 		}
- 		close(pipes[i][1]);
- 		wait(&status);
- 		//if (WIFSIGNALED(status) || WIFSTOPPED(status)) exit(1);
- 	}
- 	
- 	if((pid=fork())<0) exit(1);
- 	else if(pid ==0)
- 	{
- 		close(STDIN_FILENO);
- 		dup2(pipes[nr_pipe][0],STDIN_FILENO);
- 		close(pipes[nr_pipe][0]);
- 		close(pipes[nr_pipe][1]);
- 		for(int i=pipe_idx[nr_pipe]+1; i<=nr_tokens;i++)
- 			cmd[i-(pipe_idx[nr_pipe]+1)]=tokens[i];
- 		run_command(nr_tokens-pipe_idx[nr_pipe]-1,cmd);
- 	}
- 	wait(&status);
- 	//if (WIFSIGNALED(status) || WIFSTOPPED(status)) exit(1);
- 	
- 	return;
- }*/
-
 
 
 /***********************************************************************
