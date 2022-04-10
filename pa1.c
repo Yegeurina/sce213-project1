@@ -264,8 +264,8 @@ static int run_pipe(int nr_tokens, char *tokens[],int pt)
  	
  	close(fd[0]); 	close(fd[1]);
  	
- 	//wait(NULL); wait(NULL);
- 	while(wait(NULL)!=-1);
+ 	wait(NULL); wait(NULL);
+ 	//while(wait(NULL)!=-1);
  	
 	return 1;
 }
