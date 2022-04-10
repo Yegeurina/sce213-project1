@@ -26,23 +26,9 @@
 #include "list_head.h"
 #include "parser.h"
 
-
-
-/***********************************************************************
- * struct list_head history
- *
- * DESCRIPTION
- *   Use this list_head to store unlimited command history.
- */
-LIST_HEAD(history);
-
-struct entry{
-	struct list_head list;
-	char *string;
-};
-
- char* cmd1;
- char* cmd2;
+static int __process_cmd(char * command);
+static int history_command(char* tokens[], int case_num);
+static int run_pipe(int nr_tokens, char *tokens[],int pt);
 
 /***********************************************************************
  * run_command()
@@ -56,178 +42,71 @@ struct entry{
  *   Return 0 when user inputs "exit"
  *   Return <0 on error
  */
- 
-void run_pipe(int nr_tokens, char *tokens[],int pt);
-static int __process_cmd(char * command);
-
 static int run_command(int nr_tokens, char *tokens[])
 {
-	struct entry *temp;
-	int i=0,num,is_pipe=0;
-	char *cmd, *pre_cmd;
-	char *path;
-	
+	char* path;
+	int is_pipe = 0;
 	pid_t pid;
 	
-	fprintf(stderr,"%d\n",nr_tokens);
-	for(i=0;i<nr_tokens;i++) fprintf(stderr,"tokens[%d] : %s\n",i,tokens[i]);
-	fprintf(stderr,"====================\n");
+	/*fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
+	for (int i=0;i<nr_tokens;i++)
+		fprintf(stderr,"tokens[%d] : %s\n",i, tokens[i]);*/
+	
+	if (strcmp(tokens[0], "exit") == 0) return 0;
 	
 	if(nr_tokens>1)	// pipe
 	{ 
-		for(i=0;i<nr_tokens;i++)
+		for(int i=0;i<nr_tokens;i++)
+		{
 			if(strcmp(tokens[i],"|")==0)	
 			{
-				run_pipe(nr_tokens,tokens,i);
 				is_pipe=1;
+				return run_pipe(nr_tokens,tokens,i);
 			}
+		}
 	}
 	
-	if (strcmp(tokens[0], "exit") == 0) 	return 0;
-	else if(strcmp(tokens[0], "cd") == 0)
+	if(is_pipe == 0)
 	{
-		if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
+		//if (strcmp(tokens[0], "exit") == 0) return 0;
+		if (strcmp(tokens[0],"history")==0 ) return history_command(tokens, 0);
+		else if(strchr(tokens[0],'!')!=NULL) return history_command(tokens,1);
+		else if(strcmp(tokens[0],"cd")==0)
 		{
-			if((path= (char *)getenv("HOME"))==NULL) path=".";
-			
-			if(chdir(path)==0)	return 1;
-		}
-		if(chdir(tokens[1])==0)	return 1;
-	}
-	else if (strcmp(tokens[0], "history") == 0)
-	{
-		list_for_each_entry_reverse(temp,&history,list)
-		{
-			fprintf(stderr,"%2d: %s",i,temp->string);
-			i++;
-		}
-		
-		return 1;
-	}
-	else if(tokens[0][0]=='!')
-	{
-		if (tokens[0][1]=='!')	num = -1;
-		else num = atoi(tokens[0]+1);
-		list_for_each_entry_reverse(temp,&history,list)
-		{
-			if(i>=2) free(pre_cmd);
-			if (i>=1)
+			if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
 			{
-				pre_cmd = (char *) malloc(sizeof(strlen(cmd)+1));
-				strcpy(pre_cmd,cmd);
-			 	free(cmd);
+				if((path= (char *)getenv("HOME"))==NULL) path=".";
+				
+				if(chdir(path)==0)	return 1;
 			}
-			cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
-			strcpy(cmd,temp->string);
-			if (i==num) 	break;
-			i++;
+			if(chdir(tokens[1])==0)	return 1;
 		}
-		if (num==-1) 
+		else if((pid = fork())==0)
 		{
-			free(cmd);
-			cmd = (char *) malloc(sizeof(strlen(pre_cmd)+1));
-			strcpy(cmd,pre_cmd);
-			free(pre_cmd);
+			if (execvp(tokens[0],tokens)==-1)
+				fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+			exit(0);
+			
 		}
-		if(num==-1 || i==num)
-		{
-			__process_cmd(cmd);
-		}
-		free(cmd);
 	}
-	
-	// 포크하면 자식프로세스한테는 0이 떨어지고
-	// 부모프로세스한테는 자식프로세스의 PID가 떨어짐
-	
-	else if((pid=fork())==0 && is_pipe==0)
-	{
-		if (execvp(tokens[0],tokens)==-1)
-		{
-			fprintf(stderr, "Unable to execute %s\n", tokens[0]);
-		}
-		exit(0);
-		
-	}
-	
+
 	while(wait(NULL)!=-1);
-	//wait(NULL);
+	//fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
 }
 
- static int __process_cmd(char * command)
- {
- 	char *tokens[MAX_NR_TOKENS] = { NULL };
-	int nr_tokens = 0;
 
-	if (parse_command(command, &nr_tokens, tokens) == 0)
-		return 1;
-
-	return run_command(nr_tokens, tokens);
- }
- 
-
-
- void run_pipe(int nr_tokens, char *tokens[], int pt)
- {	
- 	int i,fd[2];
- 	char **cmd1, **cmd2;
- 	
- 	//fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
- 	
- 	cmd1 = (char **)malloc(sizeof(char*)*pt);
- 	//fprintf(stderr,"pt is %d\n",pt); 
- 	//fprintf(stderr,"this is run_pipe : cmd1\n"); 
- 	for(i=0;i<pt;i++) 
- 	{
- 		cmd1[i]=tokens[i];
- 		//fprintf(stderr,"%s\n",cmd1[i]); 
- 	}
- 	strcat(cmd1[pt-1],"\0");
- 	//fprintf(stderr,"cmd2 malloc test here\n cmd2 size is %d",nr_tokens-pt-1);
- 	cmd2 = (char **)malloc(sizeof(char*)*(nr_tokens-pt-1));
- 	//fprintf(stderr,"this is run_pipe : cmd2\n");
- 	for(i=pt+1;i<nr_tokens;i++) 
- 	{
- 		cmd2[i-(pt+1)]=tokens[i];
- 		//fprintf(stderr,"%s\n",cmd2[i-(pt+1)]); 
- 	}
- 	
- 	if(pipe(fd)<0)	exit(0);
- 	
- 	if(fork()==0)
- 	{
- 		close(STDOUT_FILENO);
- 		dup2(fd[1],STDOUT_FILENO);
- 		close(fd[0]);
- 		close(fd[1]);
- 		run_command(pt,cmd1);
- 		free(cmd1);
- 		wait(NULL);
- 		exit(0);
- 	}
- 	wait(NULL);
- 	
- 	
- 	if(fork()==0)
- 	{
- 		close(STDIN_FILENO);
- 		dup2(fd[0],STDIN_FILENO);
- 		close(fd[0]);
- 		close(fd[1]);
- 		run_command(nr_tokens-pt-1,cmd2);
- 		free(cmd2);
- 		wait(NULL);
- 		exit(0);
- 	}
- 	wait(NULL);
- 	
- 	
- 	close(fd[1]); 	close(fd[0]);
- 	
- 	//while(wait(NULL)!=-1);
-
- }
- 
+/***********************************************************************
+ * struct list_head history
+ *
+ * DESCRIPTION
+ *   Use this list_head to store unlimited command history.
+ */
+LIST_HEAD(history);
+struct entry{
+	struct list_head list;
+	char *string;
+};
 
 
 /***********************************************************************
@@ -239,14 +118,13 @@ static int run_command(int nr_tokens, char *tokens[])
  */
 static void append_history(char * const command)
 {
-	 struct entry *item = malloc(sizeof(struct entry));
+	struct entry *item = malloc(sizeof(struct entry));
 	 INIT_LIST_HEAD(&item->list);
 	 
 	 item->string = (char *)malloc(strlen(command)+1);
 	 strcpy(item->string,command);
 	 
 	 list_add(&item->list,&history);
-
 }
 
 
@@ -276,7 +154,120 @@ static int initialize(int argc, char * const argv[])
  */
 static void finalize(int argc, char * const argv[])
 {
+
+}
+
+
+/***********************************************************************
+ * ******************command_functions**********************************
+ ***********************************************************************/
+static int __process_cmd(char * command)
+{
+ 	char *tokens[MAX_NR_TOKENS] = { NULL };
+	int nr_tokens = 0;
+
+	if (parse_command(command, &nr_tokens, tokens) == 0)
+		return 1;
+
+	return run_command(nr_tokens, tokens);
+}
+
+static int history_command(char* tokens[], int case_num)
+{
+	int num=0,i=0;
+	char* cmd;
+	int is_history=0;
+	struct entry *temp;
+	switch(case_num)
+	{
+		case 0:
+			list_for_each_entry_reverse(temp,&history,list)
+			{
+				fprintf(stderr,"%2d: %s",i,temp->string);
+				i++;
+			}
+			return 1;
+		case 1:
+			if(tokens[0][1]=='!')
+			{
+				list_for_each_entry(temp,&history,list)
+				{
+					if(strchr(temp->string+1,'!')==NULL)
+					{
+						cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
+						strcpy(cmd,temp->string);
+						is_history=1;
+						break;
+					}
+				}
+			}
+			else
+			{
+				num = atoi(tokens[0]+1);
+				list_for_each_entry_reverse(temp,&history,list)
+				{
+					cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
+					strcpy(cmd,temp->string);
+					if (i==num){ is_history=1; break;}
+					i++;
+				}
+			}
+			if (is_history==1) __process_cmd(cmd);
+			break;
+		default :
+			break;
+	}
+	return -EINVAL;
+}
+
+static int run_pipe(int nr_tokens, char *tokens[],int pt)
+{
+	int fd[2];
+	int i;
+	char **cmd1,**cmd2;
+	pid_t p1,p2;
 	
+	cmd1 = (char **)malloc(sizeof(char*)*pt);
+ 	for(i=0;i<pt;i++) cmd1[i]=tokens[i];
+ 	strcat(cmd1[pt-1],"\0");
+ 	cmd2 = (char **)malloc(sizeof(char*)*(nr_tokens-pt-1));
+ 	for(i=pt+1;i<nr_tokens;i++) cmd2[i-(pt+1)]=tokens[i];
+ 	
+ 	if(pipe(fd)<0)	return -1;
+ 	
+ 	if((p1=fork())<0) return -1;
+ 	else if(p1==0)
+ 	{
+ 		close(fd[0]);
+ 		dup2(fd[1],STDOUT_FILENO);
+ 		//close(fd[1]);
+ 		//close(fd[0]);
+ 		run_command(pt,cmd1);
+ 		free(cmd1);
+ 		wait(NULL);
+ 		exit(0);
+ 	}
+ 	
+ 	if((p2=fork())<0) return -1;
+ 	else if(p2==0)
+	{
+		close(fd[1]);
+	 	dup2(fd[0],STDIN_FILENO);
+	 	//close(fd[0]);
+	 	//close(fd[1]);
+	 	run_command(nr_tokens-pt-1,cmd2);
+	 	free(cmd2);
+	 	wait(NULL);
+	 	exit(0);
+	}
+ 	
+ 	
+ 	close(fd[0]); 	close(fd[1]);
+ 	
+ 	//wait(NULL); wait(NULL);
+ 	while(wait(NULL)!=-1);
+ 	
+	return 1;
 }
 
 
