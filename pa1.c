@@ -150,7 +150,7 @@ static int run_command(int nr_tokens, char *tokens[])
 	}
 	
 	while(wait(NULL)!=-1);
-	
+	//wait(NULL);
 	return -EINVAL;
 }
 
@@ -174,17 +174,17 @@ static int run_command(int nr_tokens, char *tokens[])
  	
  	//fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
  	
- 	cmd1 = (char **)malloc(sizeof(pt));
+ 	cmd1 = (char **)malloc(sizeof(char*)*pt);
  	//fprintf(stderr,"pt is %d\n",pt); 
  	//fprintf(stderr,"this is run_pipe : cmd1\n"); 
- 	for(i=0;i<pt-1;i++) 
+ 	for(i=0;i<pt;i++) 
  	{
  		cmd1[i]=tokens[i];
  		//fprintf(stderr,"%s\n",cmd1[i]); 
  	}
- 	cmd1[pt-1]=tokens[i]+'\0';
+ 	strcat(cmd1[pt-1],"\0");
  	//fprintf(stderr,"cmd2 malloc test here\n cmd2 size is %d",nr_tokens-pt-1);
- 	cmd2 = (char **)malloc(sizeof(nr_tokens-pt-1));
+ 	cmd2 = (char **)malloc(sizeof(char*)*(nr_tokens-pt-1));
  	//fprintf(stderr,"this is run_pipe : cmd2\n");
  	for(i=pt+1;i<nr_tokens;i++) 
  	{
