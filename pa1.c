@@ -48,6 +48,8 @@ static int run_command(int nr_tokens, char *tokens[])
 	//fprintf(stderr,"run_command\n");
 	int pipe_point=-1;
 	
+	for(int i=0;i<nr_tokens;i++) fprintf(stderr,"tockes[%d] :%s\n",i,tokens[i]);
+	
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 	
 	if (nr_tokens>1)
@@ -249,15 +251,15 @@ static int pipe_command(int nr_tokens, char *tokens[],int pipe_point)
  	if(p1<0) return -1;
  	else if(p1==0)
  	{
+ 		close(STDOUT_FILENO);
+ 		dup2(fd[1],1);
  		close(fd[0]);
- 		dup2(fd[1],STDOUT_FILENO);
  		close(fd[1]);
  		
- 		if(run_command(pipe_point,cmd1)<0) exit(-1);
+ 		run_command(pipe_point,cmd1);
  		
  		//for(i=0;i<pipe_point;i++) free(cmd1[i]);
- 		//free(cmd1);
- 	
+ 		
  		exit(0);
  		
  	}
@@ -266,20 +268,22 @@ static int pipe_command(int nr_tokens, char *tokens[],int pipe_point)
  	if(p2<0) return -1;
  	else if(p2==0)
  	{
+	 	close(STDIN_FILENO);
+	 	dup2(fd[0],0);
 	 	close(fd[1]);
-	 	dup2(fd[0],STDIN_FILENO);
 	 	close(fd[0]);
-	 	if(run_command(nr_tokens-pipe_point-1,cmd2)<0) exit(-1);
+	 	
+	 	run_command(nr_tokens-pipe_point-1,cmd2);
 	 		
 	 	//for(i=pipe_point+1;i<nr_tokens;i++) free(cmd2[i-(pipe_point+1)]);
-	 	//free(cmd2);
+	 	
 	 	wait(NULL);
 	 	
 	 	exit(0);
 	}
  	
-	
-	wait(NULL);
+ 	close(fd[0]); close(fd[1]);
+	wait(0); wait(0);
 	
 	return 1;
  	
