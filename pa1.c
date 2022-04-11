@@ -47,10 +47,11 @@ static int run_command(int nr_tokens, char *tokens[])
 	char* path;
 	int is_pipe = 0;
 	pid_t pid;
+	int status;
 	
-	/*fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
+	fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
 	for (int i=0;i<nr_tokens;i++)
-		fprintf(stderr,"tokens[%d] : %s\n",i, tokens[i]);*/
+		fprintf(stderr,"tokens[%d] : %s\n",i, tokens[i]);
 	
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 	
@@ -68,6 +69,7 @@ static int run_command(int nr_tokens, char *tokens[])
 	
 	if(is_pipe == 0)
 	{
+		pid = fork();
 		//if (strcmp(tokens[0], "exit") == 0) return 0;
 		if (strcmp(tokens[0],"history")==0 ) return history_command(tokens, 0);
 		else if(strchr(tokens[0],'!')!=NULL) return history_command(tokens,1);
@@ -81,17 +83,21 @@ static int run_command(int nr_tokens, char *tokens[])
 			}
 			if(chdir(tokens[1])==0)	return 1;
 		}
-		else if((pid = fork())==0)
+		else if(pid==0)
 		{
 			if (execvp(tokens[0],tokens)==-1)
+			{	
 				fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+				exit(-1);
+			}
 			exit(0);
-			
 		}
+		wait(&status);
+		if (WEXITSTATUS(status)==0) return 1;
 	}
 
 	while(wait(NULL)!=-1);
-	//fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
 	return -EINVAL;
 }
 
