@@ -271,7 +271,7 @@ static int history_command(char* tokens[], int case_num)
 			else
 			{
 				num = atoi(tokens[0]+1);
-				list_for_each_entry_reverse(temp,&history,list)
+				list_for_each_entry(temp,&history,list)
 				{
 					cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
 					strcpy(cmd,temp->string);
