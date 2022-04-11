@@ -28,8 +28,7 @@
 
 static int __process_cmd(char * command);
 static int history_command(char* tokens[], int case_num);
-static int basic_command(int nr_tokens, char* tokens[]);
-static int pipe_command(int nr_tokens, char* tokens[], int pipe_point);
+static int run_pipe(int nr_tokens, char *tokens[],int pt);
 
 /***********************************************************************
  * run_command()
@@ -45,27 +44,61 @@ static int pipe_command(int nr_tokens, char* tokens[], int pipe_point);
  */
 static int run_command(int nr_tokens, char *tokens[])
 {
-	//fprintf(stderr,"run_command\n");
-	int pipe_point=-1;
+	char* path;
+	int is_pipe = 0;
+	pid_t pid;
+	int status;
+	
+	fprintf(stderr,"nr_tokens : %d\n",nr_tokens);
+	for (int i=0;i<nr_tokens;i++)
+		fprintf(stderr,"tokens[%d] : %s\n",i, tokens[i]);
 	
 	if (strcmp(tokens[0], "exit") == 0) return 0;
 	
-	if (nr_tokens>1)
-	{
+	if(nr_tokens>1)	// pipe
+	{ 
 		for(int i=0;i<nr_tokens;i++)
 		{
-			if(strcmp(tokens[i],"|")==0)
+			if(strcmp(tokens[i],"|")==0)	
 			{
-				pipe_point=i;
-				break;
+				is_pipe=1;
+				return run_pipe(nr_tokens,tokens,i);
 			}
 		}
 	}
 	
-	if(pipe_point!=-1) return pipe_command(nr_tokens, tokens, pipe_point);
-	
-	return basic_command(nr_tokens,tokens);	
-	
+	if(is_pipe == 0)
+	{
+		pid = fork();
+		//if (strcmp(tokens[0], "exit") == 0) return 0;
+		if (strcmp(tokens[0],"history")==0 ) return history_command(tokens, 0);
+		else if(strchr(tokens[0],'!')!=NULL) return history_command(tokens,1);
+		else if(strcmp(tokens[0],"cd")==0)
+		{
+			if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
+			{
+				if((path= (char *)getenv("HOME"))==NULL) path=".";
+				
+				if(chdir(path)==0)	return 1;
+			}
+			if(chdir(tokens[1])==0)	return 1;
+		}
+		else if(pid==0)
+		{
+			if (execvp(tokens[0],tokens)==-1)
+			{	
+				fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+				exit(-1);
+			}
+			exit(0);
+		}
+		wait(&status);
+		if (WEXITSTATUS(status)==0) return 1;
+	}
+
+	while(wait(NULL)!=-1);
+	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
+	return -EINVAL;
 }
 
 
@@ -130,10 +163,10 @@ static void finalize(int argc, char * const argv[])
 
 }
 
+
 /***********************************************************************
- ********************command_functions**********************************
+ * ******************command_functions**********************************
  ***********************************************************************/
- 
 static int __process_cmd(char * command)
 {
  	char *tokens[MAX_NR_TOKENS] = { NULL };
@@ -193,97 +226,56 @@ static int history_command(char* tokens[], int case_num)
 	return -EINVAL;
 }
 
-static int basic_command(int nr_tokens, char* tokens[])
+static int run_pipe(int nr_tokens, char *tokens[],int pt)
 {
-	//fprintf(stderr,"basic_command\n");
-	int status;		
-	char* path;
-	pid_t pid;
-	if (strcmp(tokens[0],"history")==0 ) return history_command(tokens, 0);
-	else if(strchr(tokens[0],'!')!=NULL) return history_command(tokens,1);
-	else if(strcmp(tokens[0],"cd")==0)
-	{
-		if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
-		{
-			if((path= (char *)getenv("HOME"))==NULL) path=".";
-			
-			if(chdir(path)==0)	return 1;
-		}
-		if(chdir(tokens[1])==0)	return 1;
-	}
-	else 
-	{
-		pid=fork();
-		if(pid==0)
-		{
-			if (execvp(tokens[0],tokens)==-1) exit(-1);
-			else exit(0);
-		}
-	}
-	
-	wait(&status);
-	if (WEXITSTATUS(status)==0) return 1;
-	
-	fprintf(stderr, "Unable to execute %s\n", tokens[0]);
-	return -EINVAL;
-}
-
-static int pipe_command(int nr_tokens, char *tokens[],int pipe_point)
-{
-	//fprintf(stderr,"pipe_command\n");
 	int fd[2];
 	int i;
 	char **cmd1,**cmd2;
-	pid_t p1,p2;
-	//int status1,status2;
+	//pid_t p1=fork(),p2=fork();
 	
-	cmd1 = (char **)malloc(sizeof(char*)*pipe_point);
- 	for(i=0;i<pipe_point;i++) cmd1[i]=tokens[i];
- 	strcat(cmd1[pipe_point-1],"\0");
- 	cmd2 = (char **)malloc(sizeof(char*)*(nr_tokens-pipe_point-1));
- 	for(i=pipe_point+1;i<nr_tokens;i++) cmd2[i-(pipe_point+1)]=tokens[i];
+	cmd1 = (char **)malloc(sizeof(char*)*pt);
+ 	for(i=0;i<pt;i++) cmd1[i]=tokens[i];
+ 	strcat(cmd1[pt-1],"\0");
+ 	cmd2 = (char **)malloc(sizeof(char*)*(nr_tokens-pt-1));
+ 	for(i=pt+1;i<nr_tokens;i++) cmd2[i-(pt+1)]=tokens[i];
  	
- 	if(pipe(fd)<0) return 0;
+ 	if(pipe(fd)<0)	return -1;
  	
- 	p1 = fork();
  	if(p1<0) return -1;
  	else if(p1==0)
  	{
  		close(fd[0]);
  		dup2(fd[1],STDOUT_FILENO);
- 		close(fd[1]);
- 		
- 		if(run_command(pipe_point,cmd1)<0) exit(-1);
- 		
- 		//for(i=0;i<pipe_point;i++) free(cmd1[i]);
- 		//free(cmd1);
- 	
+ 		//close(fd[1]);
+ 		//close(fd[0]);
+ 		run_command(pt,cmd1);
+ 		free(cmd1);
+ 		wait(NULL);
  		exit(0);
- 		
  	}
  	
- 	p2 = fork();
  	if(p2<0) return -1;
  	else if(p2==0)
- 	{
-	 	close(fd[1]);
+	{
+		close(fd[1]);
 	 	dup2(fd[0],STDIN_FILENO);
-	 	close(fd[0]);
-	 	if(run_command(nr_tokens-pipe_point-1,cmd2)<0) exit(-1);
-	 		
-	 	//for(i=pipe_point+1;i<nr_tokens;i++) free(cmd2[i-(pipe_point+1)]);
-	 	//free(cmd2);
+	 	//close(fd[0]);
+	 	//close(fd[1]);
+	 	run_command(nr_tokens-pt-1,cmd2);
+	 	free(cmd2);
 	 	wait(NULL);
-	 	
 	 	exit(0);
 	}
  	
-	
-	wait(NULL);
-	
-	return 1;
  	
+ 	close(fd[0]); 	close(fd[1]);
+ 	
+ 	wait(NULL); wait(NULL);
+ 	//while(wait(NULL)!=-1);
+ 	
+	return 1;
 }
+
 
 /*====================================================================*/
 /*          ****** DO NOT MODIFY ANYTHING BELOW THIS LINE ******      */
