@@ -245,6 +245,8 @@ static int history_command(char* tokens[], int case_num)
 	char* cmd;
 	int is_history=0;
 	struct entry *temp;
+	
+	
 	switch(case_num)
 	{
 		case 0:
@@ -255,11 +257,12 @@ static int history_command(char* tokens[], int case_num)
 			}
 			return 1;
 		case 1:
-			if(tokens[0][1]=='!')
+			
+			if(strcmp(tokens[1],"!")==0)
 			{
 				list_for_each_entry(temp,&history,list)
 				{
-					if(strchr(temp->string+1,'!')==NULL)
+					if(strcmp(temp->string+1,"!")!=0)
 					{
 						cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
 						strcpy(cmd,temp->string);
@@ -270,7 +273,8 @@ static int history_command(char* tokens[], int case_num)
 			}
 			else
 			{
-				num = atoi(tokens[0]+1);
+				num = atoi(tokens[1]);
+				//fprintf(stderr,"num:%d\n",num);
 				list_for_each_entry_reverse(temp,&history,list)
 				{
 					cmd = (char *) malloc(sizeof(strlen(temp->string)+1));
@@ -292,7 +296,7 @@ static int built_in_command(int nr_tokens, char *tokens[])
 	char* path;
 	
 	if (strcmp(tokens[0],"history")==0 ) return history_command(tokens, 0);
-	else if(strchr(tokens[0],'!')!=NULL) return history_command(tokens,1);
+	else if(strcmp(tokens[0],"!")==0) return history_command(tokens,1);
 	else if(strcmp(tokens[0],"cd")==0)
 	{
 		if (nr_tokens==1 || strcmp(tokens[1],"~")==0)	//cd,cd ~
